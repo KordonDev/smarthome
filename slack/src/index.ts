@@ -30,10 +30,10 @@ client.on('disconnect', () => {
 })
 
 client.on('connect', function () {
+  client.publish('start_service', JSON.stringify({ name: 'slack' }))
   client.subscribe(['fire_run', 'arne_entering_home'], { qos: 0 })
 
   client.on('message', async function (topic: string, message: object) {
-    console.log(topic)
     if (topic === 'fire_run') {
       oldStatus = await getProfile()
       fireRunActive = true

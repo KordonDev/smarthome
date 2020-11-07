@@ -9,7 +9,13 @@ if (username === undefined || password === undefined) {
 const knownAlarms: number[] = []
 let token: string | null = null
 let expireDate: Date | null = null
-let vehicles: Vehicle[] = []
+
+export const start = (cb: (data: object) => void) => {
+  loadData(cb, true)
+  setInterval(() => {
+    loadData(cb)
+  }, 20000)
+}
 
 export const getToken = () => {
   const formData = new FormData()
@@ -24,70 +30,77 @@ export const getToken = () => {
   return fetch('https://www.divera247.com/login.html?step=1&msg=&referrer=', {
     method: 'POST',
     body: formData as any,
-  }).then((response) => {
-    const cookie = response.headers.get('set-cookie')
-    if (cookie) {
-      const s = cookie.split(';').filter((sub) => sub.includes('jwt'))[0]
-      token = s.substring(s.indexOf('_jwt'))
-
-      const expiresToken = 'expires='
-      const expireString = cookie.split(';').filter((sub) => sub.includes(expiresToken))[0]
-      const expire = expireString.substring(expireString.indexOf(expiresToken) + expiresToken.length)
-      expireDate = new Date(expire)
-    }
   })
+    .then((response) => {
+      const cookie = response.headers.get('set-cookie')
+      if (cookie) {
+        const s = cookie.split(';').filter((sub) => sub.includes('jwt'))[0]
+        token = s.substring(s.indexOf('_jwt'))
+
+        const expiresToken = 'expires='
+        const expireString = cookie.split(';').filter((sub) => sub.includes(expiresToken))[0]
+        const expire = expireString.substring(expireString.indexOf(expiresToken) + expiresToken.length)
+        expireDate = new Date(expire)
+      }
+    })
+    .catch((e) => console.log('token error', e))
 }
 
 const loadData = async (cb: (data: object) => void, initalCall?: boolean) => {
-  const nowSeconds = new Date().getTime() / 1000
+  const nowSeconds = Math.round(new Date().getTime() / 1000)
   if (!token || !expireDate || expireDate.getTime() / 1000 - nowSeconds < 60 * 60 * 12) {
     await getToken()
   }
-  fetch(`https://www.divera247.com/api/pull?${nowSeconds.toString()}`, {
+  const url = `https://www.divera247.com/api/pull?${nowSeconds.toString()}`
+  console.log(url)
+  fetch(url, {
     headers: {
       cookie: token || '',
       'content-type': 'application/json; charset=UTF-8',
     },
   })
-    .catch(console.error)
+    .catch((e) => console.log('e', e))
     .then((res: any) => res.json())
     .then((res: DiveraRespose) => {
-      vehicles = Object.entries(res.data.cluster.vehicle).map(([key, value]) => ({
-        id: key,
-        name: value.name,
-        shortname: value.shortname,
-        fullname: value.fullname,
-      }))
-      return res
-    })
-    .then((res: DiveraRespose) => res.data.alarm.items)
-    .then((alarms: { [key: string]: Alarm }) => {
-      Object.values(alarms).map((alarm) => {
-        if (knownAlarms.includes(alarm.id) || initalCall) {
-          console.log('Alter Alarm:', alarm.title)
-        } else {
-          const alarmData = {
-            title: alarm.title,
-            addresse: alarm.address,
-            text: alarm.text, // isHTML
-            vehicles: alarm.vehicle.map((vehicleId) => vehicles.find((v) => v.id === vehicleId.toString())?.shortname),
-            in5Minutes: alarm.ucr_answeredcount['29657'],
-            in10Minutes: alarm.ucr_answeredcount['29658'],
-          }
+      const alarms = getAlarms(res.data.alarm.items)
+      alarms.map((alarm) => {
+        if (initalCall) {
+          knownAlarms.push(alarm.id)
+        }
+        if (!knownAlarms.includes(alarm.id)) {
+          const alarmData = createMqttAlarm(alarm, getVehicles(res.data.cluster.vehicle))
           cb(alarmData)
           console.log(alarmData)
           knownAlarms.push(alarm.id)
         }
       })
-      console.log('---- New -------')
+      console.log(`Got ${alarms.length} alarms`)
     })
+    .catch((e) => console.log('pull error', e))
 }
 
-export const start = (cb: (data: object) => void) => {
-  loadData(cb, true)
-  setInterval(() => {
-    loadData(cb)
-  }, 20000)
+const getVehicles = (vehicles: DiveraVehicleResponse): Vehicle[] => {
+  return Object.entries(vehicles).map(([key, value]) => ({
+    id: key,
+    name: value.name,
+    shortname: value.shortname,
+    fullname: value.fullname,
+  }))
+}
+
+const getAlarms = (alarms: DiveraAlarmReponse) => {
+  return Object.values(alarms)
+}
+
+const createMqttAlarm = (alarm: Alarm, vehicles: Vehicle[]) => {
+  return {
+    title: alarm.title,
+    addresse: alarm.address,
+    text: alarm.text, // isHTML
+    vehicles: alarm.vehicle.map((vehicleId) => vehicles.find((v) => v.id === vehicleId.toString())?.shortname),
+    in5Minutes: alarm.ucr_answeredcount['29657'],
+    in10Minutes: alarm.ucr_answeredcount['29658'],
+  }
 }
 
 interface DiveraRespose {
@@ -103,7 +116,7 @@ interface DiveraRespose {
     }
     cluster: {
       name: string
-      vehicle: object
+      vehicle: DiveraVehicleResponse
       vehiclesorting: any[]
     }
     alarm: {
@@ -131,9 +144,19 @@ interface Alarm {
   ucr_answered: {}
   ucr_answeredcount: { '29657': number; '29658': number }
 }
+interface DiveraAlarmReponse {
+  [key: string]: Alarm
+}
 
-interface Vehicle {
+interface Vehicle extends DiveraVehicle {
   id: string
+}
+
+interface DiveraVehicleResponse {
+  [key: string]: DiveraVehicle
+}
+// NOT complete
+interface DiveraVehicle {
   fullname: string
   shortname: string
   name: string

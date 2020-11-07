@@ -28,8 +28,7 @@ client.on('disconnect', () => {
 })
 
 client.on('connect', function () {
-  client.subscribe(['fire_run', 'arne_entering_home'], { qos: 0 })
-
+  client.publish('start_service', JSON.stringify({ name: 'fire_run' }))
   start((data: object) => {
     client.publish('fire_run', JSON.stringify(data))
   })

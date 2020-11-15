@@ -1,0 +1,23 @@
+{
+    "env": {
+      "browser": false,
+      "es6": true
+    },
+    "extends": "plugin:react/recommended",
+    "globals": {
+      "Atomics": "readonly",
+      "SharedArrayBuffer": "readonly"
+    },
+    "parser": "@typescript-eslint/parser",
+    "parserOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module"
+    },
+    "plugins": ["@typescript-eslint", "prettier"],
+    "rules": {
+      "no-debugger": "off",
+      "no-dupe-keys": 2,
+      "eqeqeq": 2,
+      "prettier/prettier": "error"
+    }
+}

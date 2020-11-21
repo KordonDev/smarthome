@@ -1,6 +1,7 @@
 import mqtt from 'mqtt'
 
 import { loadUpdates, sendMessage } from './telegram'
+import { sendTelegram, MQTTTopics, startService, parseMessage } from './mqttNaming'
 
 const host = process.env.HA_MQTT_HOST
 const user = process.env.HA_MQTT_USER
@@ -34,19 +35,22 @@ client.on('disconnect', () => {
 })
 
 client.on('connect', async function () {
-  client.publish('start_service', JSON.stringify({ name: 'telegram' }))
+  const startServiceData = startService('telegram')
+  client.publish(startServiceData.topic, startServiceData.data)
   if (allTopics) {
-    client.subscribe(['#'], { qos: 0 })
+    client.subscribe(['kordondev/#'], { qos: 0 })
   } else {
-    client.subscribe(['telegram'], { qos: 0 })
+    client.subscribe([MQTTTopics.receiveTelegram], { qos: 0 })
   }
 
   client.on('message', async function (topic: string, messageBuffer: Buffer) {
-    const message = JSON.parse(messageBuffer.toString('utf-8'))
-    sendMessage(message)
+    sendMessage(parseMessage(messageBuffer))
   })
 
-  const sendToMqtt = (text: string) => client.publish('from_telegram', JSON.stringify({ text: text }))
+  const sendToMqtt = (text: string) => {
+    const sendTelegramData = sendTelegram(text)
+    client.publish(sendTelegramData.topic, sendTelegramData.data)
+  }
   loadMessages(0, sendToMqtt)
 })
 

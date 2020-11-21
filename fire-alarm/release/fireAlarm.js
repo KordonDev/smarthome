@@ -39,7 +39,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.start = exports.getToken = void 0;
+exports.getToken = exports.start = void 0;
 var node_fetch_1 = __importDefault(require("node-fetch"));
 var form_data_1 = __importDefault(require("form-data"));
 var username = process.env.DIVERA_USERNAME;
@@ -50,7 +50,12 @@ if (username === undefined || password === undefined) {
 var knownAlarms = [];
 var token = null;
 var expireDate = null;
-var vehicles = [];
+exports.start = function (cb) {
+    loadData(cb, true);
+    setInterval(function () {
+        loadData(cb);
+    }, 20000);
+};
 exports.getToken = function () {
     var formData = new form_data_1.default();
     formData.append('Login[username]', username);
@@ -62,7 +67,8 @@ exports.getToken = function () {
     return node_fetch_1.default('https://www.divera247.com/login.html?step=1&msg=&referrer=', {
         method: 'POST',
         body: formData,
-    }).then(function (response) {
+    })
+        .then(function (response) {
         var cookie = response.headers.get('set-cookie');
         if (cookie) {
             var s = cookie.split(';').filter(function (sub) { return sub.includes('jwt'); })[0];
@@ -72,71 +78,74 @@ exports.getToken = function () {
             var expire = expireString.substring(expireString.indexOf(expiresToken_1) + expiresToken_1.length);
             expireDate = new Date(expire);
         }
-    });
+    })
+        .catch(function (e) { return console.log('token error', e); });
 };
 var loadData = function (cb, initalCall) { return __awaiter(void 0, void 0, void 0, function () {
-    var nowSeconds;
+    var nowSeconds, url;
     return __generator(this, function (_a) {
         switch (_a.label) {
             case 0:
-                nowSeconds = new Date().getTime() / 1000;
+                nowSeconds = Math.round(new Date().getTime() / 1000);
                 if (!(!token || !expireDate || expireDate.getTime() / 1000 - nowSeconds < 60 * 60 * 12)) return [3 /*break*/, 2];
                 return [4 /*yield*/, exports.getToken()];
             case 1:
                 _a.sent();
                 _a.label = 2;
             case 2:
-                node_fetch_1.default("https://www.divera247.com/api/pull?" + nowSeconds.toString(), {
+                url = "https://www.divera247.com/api/pull?" + nowSeconds.toString();
+                console.log(url);
+                node_fetch_1.default(url, {
                     headers: {
                         cookie: token || '',
                         'content-type': 'application/json; charset=UTF-8',
                     },
                 })
-                    .catch(console.error)
+                    .catch(function (e) { return console.log('e', e); })
                     .then(function (res) { return res.json(); })
                     .then(function (res) {
-                    vehicles = Object.entries(res.data.cluster.vehicle).map(function (_a) {
-                        var key = _a[0], value = _a[1];
-                        return ({
-                            id: key,
-                            name: value.name,
-                            shortname: value.shortname,
-                            fullname: value.fullname,
-                        });
-                    });
-                    return res;
-                })
-                    .then(function (res) { return res.data.alarm.items; })
-                    .then(function (alarms) {
-                    Object.values(alarms).map(function (alarm) {
-                        if (knownAlarms.includes(alarm.id) || initalCall) {
-                            console.log('Alter Alarm:', alarm.title);
+                    var alarms = getAlarms(res.data.alarm.items);
+                    alarms.map(function (alarm) {
+                        if (initalCall) {
+                            knownAlarms.push(alarm.id);
                         }
-                        else {
-                            var alarmData = {
-                                title: alarm.title,
-                                addresse: alarm.address,
-                                text: alarm.text,
-                                vehicles: alarm.vehicle.map(function (vehicleId) { var _a; return (_a = vehicles.find(function (v) { return v.id === vehicleId.toString(); })) === null || _a === void 0 ? void 0 : _a.shortname; }),
-                                in5Minutes: alarm.ucr_answeredcount['29657'],
-                                in10Minutes: alarm.ucr_answeredcount['29658'],
-                            };
+                        if (!knownAlarms.includes(alarm.id)) {
+                            var alarmData = createMqttAlarm(alarm, getVehicles(res.data.cluster.vehicle));
                             cb(alarmData);
                             console.log(alarmData);
                             knownAlarms.push(alarm.id);
                         }
                     });
-                    console.log('---- New -------');
-                });
+                    console.log("Got " + alarms.length + " alarms");
+                })
+                    .catch(function (e) { return console.log('pull error', e); });
                 return [2 /*return*/];
         }
     });
 }); };
-exports.start = function (cb) {
-    loadData(cb, true);
-    setInterval(function () {
-        loadData(cb);
-    }, 20000);
+var getVehicles = function (vehicles) {
+    return Object.entries(vehicles).map(function (_a) {
+        var key = _a[0], value = _a[1];
+        return ({
+            id: key,
+            name: value.name,
+            shortname: value.shortname,
+            fullname: value.fullname,
+        });
+    });
+};
+var getAlarms = function (alarms) {
+    return Object.values(alarms);
+};
+var createMqttAlarm = function (alarm, vehicles) {
+    return {
+        title: alarm.title,
+        addresse: alarm.address,
+        text: alarm.text,
+        vehicles: alarm.vehicle.map(function (vehicleId) { var _a; return (_a = vehicles.find(function (v) { return v.id === vehicleId.toString(); })) === null || _a === void 0 ? void 0 : _a.shortname; }),
+        in5Minutes: alarm.ucr_answeredcount['29657'],
+        in10Minutes: alarm.ucr_answeredcount['29658'],
+    };
 };
 var Answer;
 (function (Answer) {

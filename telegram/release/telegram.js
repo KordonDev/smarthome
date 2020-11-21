@@ -39,74 +39,54 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-var slack_1 = require("./slack");
-var mqtt_1 = __importDefault(require("mqtt"));
-var mqttNaming_1 = require("./mqttNaming");
-var host = process.env.HA_MQTT_HOST;
-var user = process.env.HA_MQTT_USER;
-var password = process.env.HA_MQTT_PASSWORD;
-if (host === undefined || user === undefined || password === undefined) {
-    console.log('Missing configuration parameter');
-}
-var client = mqtt_1.default.connect({
-    host: host,
-    port: '1883',
-    username: user,
-    password: password,
-    protocolId: 'MQTT',
-    protocolVerison: 5,
-});
-var oldStatus = {};
-var fireRunActive = false;
-var fireRunStatusText = 'Feuerwehreinsatz';
-var fireRunStatusIcon = ':fire_engine:';
-client.on('error', function (topic) {
-    console.log('errro', topic);
-});
-client.on('disconnect', function () {
-    console.log('disconnect');
-});
-client.on('connect', function () {
-    var startServiceData = mqttNaming_1.startService('slack');
-    client.publish(startServiceData.topic, startServiceData.data);
-    client.subscribe([mqttNaming_1.MQTTTopics.startFireAlarm, mqttNaming_1.MQTTTopics.arneBackHome], { qos: 0 });
-    client.on('message', function (topic, message) {
-        return __awaiter(this, void 0, void 0, function () {
-            var currentStatus;
-            return __generator(this, function (_a) {
-                switch (_a.label) {
-                    case 0:
-                        if (!isWorktime()) return [3 /*break*/, 2];
-                        if (!(topic === mqttNaming_1.MQTTTopics.startFireAlarm)) return [3 /*break*/, 2];
-                        return [4 /*yield*/, slack_1.getProfile()];
-                    case 1:
-                        currentStatus = _a.sent();
-                        if (currentStatus.statusText !== fireRunStatusText) {
-                            oldStatus = currentStatus;
-                        }
-                        fireRunActive = true;
-                        slack_1.setProfile(fireRunStatusText, fireRunStatusIcon);
-                        _a.label = 2;
-                    case 2:
-                        if (topic === mqttNaming_1.MQTTTopics.arneBackHome && fireRunActive) {
-                            slack_1.setProfile(oldStatus.statusText, oldStatus.statusEmoji);
-                            fireRunActive = false;
-                        }
-                        return [2 /*return*/];
-                }
-            });
+exports.sendMessage = exports.loadUpdates = void 0;
+var node_fetch_1 = __importDefault(require("node-fetch"));
+var telegramAPI = 'https://api.telegram.org';
+var userID = process.env.USER_ID;
+var token = process.argv[process.argv.indexOf('botToken') + 1];
+exports.loadUpdates = function (offset, sendCommand, allTopics, commands) {
+    if (commands === void 0) { commands = []; }
+    return __awaiter(void 0, void 0, void 0, function () {
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0: return [4 /*yield*/, node_fetch_1.default(telegramAPI + "/bot" + token + "/getUpdates?offset=" + offset, {
+                        method: 'post',
+                    })
+                        .then(function (r) { return r.json(); })
+                        .then(function (r) { return (r.ok ? r.result : new Error("Reponse not ok: " + r)); })
+                        .then(function (data) {
+                        var highestOffset = offset;
+                        console.log(data);
+                        data.map(function (update) {
+                            if (allTopics) {
+                                sendCommand(update.message.text);
+                            }
+                            if (commands.includes(update.message.text) && update.message.from.id.toString() === userID) {
+                                sendCommand(update.message.text);
+                            }
+                            if (update.update_id >= highestOffset) {
+                                highestOffset = update.update_id + 1;
+                            }
+                        });
+                        return highestOffset;
+                    })
+                        .catch(function (e) {
+                        console.log('error', e);
+                        return offset;
+                    })];
+                case 1: return [2 /*return*/, _a.sent()];
+            }
         });
     });
-});
-var isWorktime = function () {
-    var now = new Date();
-    // weekend
-    if (now.getDay() === 0 || now.getDay() == 6) {
-        return false;
-    }
-    // Before 6 or after 17 hour
-    if (now.getHours() < 6 || now.getHours() > 17) {
-        return false;
-    }
-    return true;
+};
+exports.sendMessage = function (message) {
+    return node_fetch_1.default(telegramAPI + "/bot" + token + "/sendMessage?chat_id=" + userID + "&text=" + encodeURIComponent(message), {
+        method: 'POST',
+    })
+        .then(function () {
+        console.log('Message posted');
+    })
+        .catch(function (err) {
+        console.log('Error :', err);
+    });
 };

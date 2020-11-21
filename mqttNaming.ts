@@ -43,4 +43,5 @@ export const washerEnd = (data: WasherEndData): MQTTPackage => {
   return { topic: MQTTTopics.washerEnd, data: JSON.stringify(data) };
 };
 
-export const parseMessage = (messageBuffer: Buffer) => JSON.parse(messageBuffer.toString('utf-8')
+export const parseMessage = (messageBuffer: Buffer) =>
+  JSON.parse(messageBuffer.toString("utf-8"));

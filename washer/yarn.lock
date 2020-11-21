@@ -405,7 +405,7 @@ ci-info@^2.0.0:
 
 "clap-detector@github:KordonDev/clap-detector":
   version "0.4.1"
-  resolved "https://codeload.github.com/KordonDev/clap-detector/tar.gz/9cf38c3abf7b233c630e76493409fc335684e0b0"
+  resolved "https://codeload.github.com/KordonDev/clap-detector/tar.gz/c1493e7559dd7add79a7483f21a457eb90e869fd"
   dependencies:
     app-root-path "^2.0.0"
 

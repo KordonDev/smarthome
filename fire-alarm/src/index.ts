@@ -1,6 +1,7 @@
 import mqtt from 'mqtt'
 
 import { start } from './fireAlarm'
+import { startFireRun, startService } from './mqttNaming'
 
 const host = process.env.HA_MQTT_HOST
 const user = process.env.HA_MQTT_USER
@@ -28,8 +29,10 @@ client.on('disconnect', () => {
 })
 
 client.on('connect', function () {
-  client.publish('start_service', JSON.stringify({ name: 'fire_run' }))
-  start((data: object) => {
-    client.publish('fire_run', JSON.stringify(data))
+  const startServiceData = startService('fire_run')
+  client.publish(startServiceData.topic, startServiceData.data)
+  start((data: any) => {
+    const fireRunData = startFireRun(data)
+    client.publish(fireRunData.topic, fireRunData.data)
   })
 })

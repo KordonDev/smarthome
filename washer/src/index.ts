@@ -1,5 +1,5 @@
-import { setProfile, getProfile, Status } from './slack'
 import mqtt from 'mqtt'
+import { startService, washerEnd } from './mqttNaming'
 
 import { startListening, onDetections } from './washer'
 
@@ -29,10 +29,12 @@ client.on('disconnect', () => {
 })
 
 client.on('connect', function () {
-  client.publish('start_service', JSON.stringify({ name: 'kordondev/washer/joined' }))
+  const startServiceData = startService('washer')
+  client.publish(startServiceData.topic, startServiceData.data)
   startListening()
 
-  onDetections(() =>
-    client.publish('kordondev/washer/enddetected', JSON.stringify({ time: new Date().getMilliseconds() }))
-  )
+  onDetections(() => {
+    const endDetectedData = washerEnd({ time: new Date().getMilliseconds() })
+    client.publish(endDetectedData.topic, endDetectedData.data)
+  })
 })

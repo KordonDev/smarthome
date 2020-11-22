@@ -83,7 +83,7 @@ client.on('connect', function () {
             client.on('message', function (topic, messageBuffer) {
                 return __awaiter(this, void 0, void 0, function () {
                     return __generator(this, function (_a) {
-                        telegram_1.sendMessage(mqttNaming_1.parseMessage(messageBuffer));
+                        telegram_1.sendMessage(topic + ": " + JSON.stringify(mqttNaming_1.parseMessage(messageBuffer)));
                         return [2 /*return*/];
                     });
                 });

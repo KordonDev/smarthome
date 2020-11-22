@@ -14,7 +14,12 @@ export const loadUpdates = async (
     method: 'post',
   })
     .then((r) => r.json())
-    .then((r) => (r.ok ? r.result : new Error(`Reponse not ok: ${r}`)))
+    .then((r: any) => {
+      if (r.ok) {
+        return r.result
+      }
+      throw new Error(`Reponse not ok: ${JSON.stringify(r)}`)
+    })
     .then((data) => {
       let highestOffset = offset
       console.log(data)

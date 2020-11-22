@@ -53,7 +53,12 @@ exports.loadUpdates = function (offset, sendCommand, allTopics, commands) {
                         method: 'post',
                     })
                         .then(function (r) { return r.json(); })
-                        .then(function (r) { return (r.ok ? r.result : new Error("Reponse not ok: " + r)); })
+                        .then(function (r) {
+                        if (r.ok) {
+                            return r.result;
+                        }
+                        throw new Error("Reponse not ok: " + JSON.stringify(r));
+                    })
                         .then(function (data) {
                         var highestOffset = offset;
                         console.log(data);

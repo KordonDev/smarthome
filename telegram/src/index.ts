@@ -44,7 +44,7 @@ client.on('connect', async function () {
   }
 
   client.on('message', async function (topic: string, messageBuffer: Buffer) {
-    sendMessage(parseMessage(messageBuffer))
+    sendMessage(`${topic}: ${JSON.stringify(parseMessage(messageBuffer))}`)
   })
 
   const sendToMqtt = (text: string) => {

@@ -23,6 +23,11 @@ Listens for end of washer
 
 ## Releases
 
+### 1.1.1
+
+- Fix telegram: Send topic name and send data as string
+- Fix telegram: Throw errors correct
+
 ### 1.1.0
 
 - Add washer
